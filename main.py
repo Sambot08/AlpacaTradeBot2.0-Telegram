@@ -140,6 +140,41 @@ def test_telegram():
         logger.error(f"Telegram test error: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/test_trade', methods=['POST'])
+def test_trade():
+    """Test trade execution with one of the selected stocks"""
+    try:
+        # Get current selected stocks
+        selection_info = workflow_engine.get_current_stock_selection()
+        selected_stocks = selection_info.get('selected_stocks', [])
+        
+        if not selected_stocks:
+            return jsonify({'error': 'No stocks selected for trading'}), 400
+        
+        # Use the first selected stock for test trade
+        test_symbol = selected_stocks[0]
+        
+        # Create a test buy signal
+        test_signal = {
+            'symbol': test_symbol,
+            'action': 'BUY',
+            'confidence': 7,
+            'quantity': 1
+        }
+        
+        # Process the test signal
+        result = workflow_engine.process_external_signal(test_signal)
+        
+        return jsonify({
+            'status': 'Test trade executed',
+            'symbol': test_symbol,
+            'result': result
+        })
+        
+    except Exception as e:
+        logger.error(f"Test trade error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 def run_scheduled_tasks():
     """Background thread for scheduled tasks"""
     while True:
