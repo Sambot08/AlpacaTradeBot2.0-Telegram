@@ -20,6 +20,7 @@ logger = setup_logger()
 
 # Initialize Flask app
 app = Flask(__name__)
+app.secret_key = os.environ.get("SESSION_SECRET", "your-secret-key-change-this")
 app.config.from_object(Config)
 
 # Initialize workflow engine
