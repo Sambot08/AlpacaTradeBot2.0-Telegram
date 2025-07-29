@@ -105,6 +105,33 @@ def get_stock_selection():
         logger.error(f"Stock selection error: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/test_connection')
+def test_connection():
+    """Test Alpaca API connection"""
+    try:
+        # Test the Alpaca connection through the workflow engine
+        alpaca_node = workflow_engine.alpaca_node
+        account_info = alpaca_node.get_account_info()
+        
+        if account_info:
+            return jsonify({
+                'status': 'success',
+                'message': 'Alpaca connection successful',
+                'account': account_info
+            })
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to connect to Alpaca'
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Connection test error: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': f'Connection test failed: {str(e)}'
+        }), 500
+
 @app.route('/api/update_stock_selection', methods=['POST'])
 def update_stock_selection():
     """Manually trigger stock selection update"""
