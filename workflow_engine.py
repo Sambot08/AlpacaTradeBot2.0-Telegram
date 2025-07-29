@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 from typing import Dict, List, Any
 
 from nodes.alpaca_node import AlpacaNode
-from nodes.chatgpt_node import ChatGPTNode
+from nodes.technical_analysis_node import TechnicalAnalysisNode
 from nodes.telegram_node import TelegramNode
 from nodes.email_node import EmailNode
 from nodes.price_data_node import PriceDataNode
@@ -29,7 +29,7 @@ class WorkflowEngine:
         
         # Initialize nodes
         self.alpaca_node = AlpacaNode()
-        self.chatgpt_node = ChatGPTNode()
+        self.technical_analysis_node = TechnicalAnalysisNode()
         self.telegram_node = TelegramNode()
         self.email_node = EmailNode()
         self.price_data_node = PriceDataNode()

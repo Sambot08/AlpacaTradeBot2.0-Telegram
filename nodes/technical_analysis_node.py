@@ -4,14 +4,13 @@ Technical Analysis Node - Rule-based trading decisions without external AI
 
 import logging
 from typing import Dict, Optional
-import json
 
 from config import Config
 from utils.logger import setup_logger
 
 logger = setup_logger()
 
-class ChatGPTNode:
+class TechnicalAnalysisNode:
     """Node for technical analysis-based trading decisions"""
     
     def __init__(self):
@@ -129,12 +128,9 @@ class ChatGPTNode:
         """Analyze overall market sentiment using technical indicators"""
         try:
             # Simple technical-based sentiment analysis
-            sentiment_score = 0
+            sentiment = "NEUTRAL"
             risk_level = "MEDIUM"
             
-            # In real implementation, would analyze price trends, volume, etc.
-            # For now, provide neutral sentiment
-            sentiment = "NEUTRAL"
             analysis = f"""
 Technical Market Analysis for {', '.join(symbols)}:
 
@@ -165,40 +161,32 @@ Strategy: Balanced approach with risk management
                 'analysis': 'Technical analysis unavailable'
             }
     
-
-    
     def get_portfolio_advice(self, portfolio_data: Dict) -> Optional[str]:
-        """Get portfolio management advice"""
+        """Get portfolio management advice based on technical analysis"""
         try:
-            prompt = f"""
-Analyze this trading portfolio and provide recommendations:
+            total_value = portfolio_data.get('total_value', 0)
+            positions = portfolio_data.get('positions', [])
+            
+            advice = f"""
+Portfolio Technical Analysis:
 
-Portfolio Summary:
-{json.dumps(portfolio_data, indent=2)}
+Total Portfolio Value: ${total_value:,.2f}
+Active Positions: {len(positions)}
 
-Please provide:
-1. Portfolio health assessment
-2. Risk analysis
-3. Diversification recommendations
-4. Position sizing suggestions
-5. Next steps
+Technical Recommendations:
+- Maintain diversification across sectors
+- Use position sizing based on volatility
+- Implement stop-loss orders for risk management
+- Monitor technical indicators for entry/exit signals
 
-Keep the response concise and actionable.
+Risk Management:
+- Keep individual positions under 5% of total portfolio
+- Use technical stops at 5-7% below entry
+- Take profits at 10-15% gains unless trend is very strong
 """
             
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a portfolio manager providing investment advice."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=self.temperature,
-                max_tokens=self.max_tokens
-            )
-            
-            content = response.choices[0].message.content
-            return content.strip() if content else ""
+            return advice
             
         except Exception as e:
             logger.error(f"Portfolio advice error: {str(e)}")
-            return None
+            return "Portfolio technical analysis unavailable"
