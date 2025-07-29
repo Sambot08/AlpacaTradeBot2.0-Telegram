@@ -127,12 +127,38 @@ class StockSelectorNode:
                     logger.warning(f"Scoring error for {symbol}: {str(e)}")
                     continue
             
-            # 5. Sort by score and get top candidates
-            scored_stocks.sort(key=lambda x: x['score'], reverse=True)
-            top_candidates = scored_stocks[:max_stocks * 2]  # Get 2x for LLM filtering
-            
-            # 6. Apply LLM sentiment filter (if available)
-            selected = self._apply_llm_sentiment_filter(top_candidates, max_stocks)
+            # 5. Check for uniform scoring (indicates insufficient differentiation)
+            if len(scored_stocks) >= 5:
+                top_5_scores = [s['score'] for s in scored_stocks[:5]]
+                score_variance = max(top_5_scores) - min(top_5_scores)
+                
+                if score_variance < 2.0:  # Very similar scores indicate poor differentiation
+                    logger.info(f"Uniform scoring detected (variance: {score_variance:.2f}). Using intelligent diversified selection.")
+                    selected = self._get_diversified_fallback_selection(max_stocks, sector_weights, time_factor)
+                else:
+                    # Check for sector concentration and apply diversification
+                    sector_counts = {}
+                    for stock_info in scored_stocks[:10]:  # Check top 10 candidates
+                        sector = stock_info.get('sector', 'OTHER')
+                        sector_counts[sector] = sector_counts.get(sector, 0) + 1
+                    
+                    max_sector_count = max(sector_counts.values()) if sector_counts else 0
+                    logger.info(f"Sector concentration analysis: {sector_counts}, max_sector_count: {max_sector_count}")
+                    
+                    if max_sector_count >= 3:  # Too concentrated
+                        logger.info(f"Detected sector concentration: {sector_counts}. Applying diversified selection.")
+                        selected = self._get_diversified_fallback_selection(max_stocks, sector_weights, time_factor)
+                    else:
+                        # Apply normal sector diversification
+                        selected = self._apply_sector_diversification(scored_stocks, max_stocks)
+                        
+                        # Apply LLM sentiment filter if available
+                        if len(selected) > max_stocks:
+                            top_candidates = [s for s in scored_stocks if s['symbol'] in selected]
+                            selected = self._apply_llm_sentiment_filter(top_candidates, max_stocks)
+            else:
+                # Not enough candidates, use diversified fallback
+                selected = self._get_diversified_fallback_selection(max_stocks, sector_weights, time_factor)
             
             logger.info(f"Selected stocks for trading: {selected}")
             
@@ -517,6 +543,63 @@ class StockSelectorNode:
             # Last resort - manually diversified selection
             return ['AAPL', 'JPM', 'JNJ', 'HD', 'SPY']
     
+    def _apply_sector_diversification(self, scored_stocks: List[Dict], max_stocks: int) -> List[str]:
+        """Apply sector diversification to stock selection"""
+        try:
+            # Sort by score first
+            scored_stocks.sort(key=lambda x: x['score'], reverse=True)
+            
+            selected_stocks = []
+            sector_counts = {}
+            max_per_sector = max(1, max_stocks // 3)  # Allow max 1-2 stocks per sector
+            
+            # First pass: Select highest scoring stock from each sector
+            sectors_used = set()
+            for stock_info in scored_stocks:
+                symbol = stock_info['symbol']
+                sector = stock_info.get('sector', 'OTHER')
+                
+                if len(selected_stocks) >= max_stocks:
+                    break
+                    
+                if sector not in sectors_used:
+                    selected_stocks.append(symbol)
+                    sectors_used.add(sector)
+                    sector_counts[sector] = 1
+                    
+                    logger.info(f"Selected {symbol} as top pick from {sector} sector")
+            
+            # Second pass: Fill remaining slots with next best stocks (max per sector)
+            for stock_info in scored_stocks:
+                symbol = stock_info['symbol']
+                sector = stock_info.get('sector', 'OTHER')
+                
+                if len(selected_stocks) >= max_stocks:
+                    break
+                    
+                if (symbol not in selected_stocks and 
+                    sector_counts.get(sector, 0) < max_per_sector):
+                    selected_stocks.append(symbol)
+                    sector_counts[sector] = sector_counts.get(sector, 0) + 1
+                    
+                    logger.info(f"Added {symbol} from {sector} sector (count: {sector_counts[sector]})")
+            
+            # Log final sector distribution
+            final_distribution = {}
+            for symbol in selected_stocks:
+                sector = next((s['sector'] for s in scored_stocks if s['symbol'] == symbol), 'OTHER')
+                final_distribution[sector] = final_distribution.get(sector, 0) + 1
+            
+            logger.info(f"Final sector distribution: {final_distribution}")
+            
+            return selected_stocks[:max_stocks]
+            
+        except Exception as e:
+            logger.error(f"Sector diversification error: {str(e)}")
+            # Return top stocks by score as fallback
+            scored_stocks.sort(key=lambda x: x['score'], reverse=True)
+            return [s['symbol'] for s in scored_stocks[:max_stocks]]
+    
     def _calculate_stock_score(self, symbol: str, data: Dict) -> float:
         """Calculate a composite score for stock selection"""
         try:
@@ -618,34 +701,45 @@ class StockSelectorNode:
             return 0.0
     
     def _get_sector_preference_score(self, symbol: str) -> float:
-        """Give preference scores based on sector/stock type"""
+        """Give preference scores based on sector/stock type with diversity bonus"""
+        base_score = 0.0
         
-        # Tech stocks preference
-        tech_stocks = ['AAPL', 'MSFT', 'GOOGL', 'AMZN', 'META', 'TSLA', 'NVDA', 'NFLX']
-        if symbol in tech_stocks:
-            return 15.0
+        # Add variation based on symbol to break ties
+        symbol_hash = hash(symbol) % 100
+        base_score += symbol_hash * 0.1  # Add 0-9.9 points based on symbol
         
-        # Financial sector
-        finance_stocks = ['JPM', 'BAC', 'WFC', 'GS', 'MS', 'V', 'MA']
-        if symbol in finance_stocks:
-            return 12.0
+        # Sector-based scoring with more variation
+        sector = self.stock_sectors.get(symbol, 'OTHER')
         
-        # ETFs for stability
-        etfs = ['SPY', 'QQQ', 'IWM', 'VTI']
-        if symbol in etfs:
-            return 10.0
-        
-        # Consumer staples
-        consumer_stocks = ['KO', 'PEP', 'WMT', 'HD', 'MCD']
-        if symbol in consumer_stocks:
-            return 8.0
-        
-        # Healthcare
-        healthcare_stocks = ['JNJ', 'PFE', 'UNH', 'ABBV', 'MRK']
-        if symbol in healthcare_stocks:
-            return 7.0
-        
-        return 5.0  # Default for other stocks
+        if sector == 'XLK':  # Tech - moderate preference
+            base_score += 5.0
+        elif sector == 'XLF':  # Finance - high preference for diversification  
+            base_score += 8.0
+        elif sector == 'XLV':  # Healthcare - very high preference (defensive)
+            base_score += 10.0
+        elif sector == 'XLY':  # Consumer Discretionary - moderate
+            base_score += 6.0
+        elif sector == 'XLP':  # Consumer Staples - high preference (defensive)
+            base_score += 9.0
+        elif sector == 'XLI':  # Industrial - moderate preference
+            base_score += 7.0
+        elif sector == 'XLE':  # Energy - low preference (volatile)
+            base_score += 3.0
+        elif sector == 'XLU':  # Utilities/ETFs - high preference (stable)
+            base_score += 8.0  
+        else:
+            base_score += 4.0  # Default for unknown sectors
+            
+        # Time-based sector preferences to add more variation
+        current_hour = datetime.now().hour
+        if current_hour < 11:  # Morning boost for certain sectors
+            if sector in ['XLK', 'XLY']:
+                base_score += 3.0
+        elif current_hour > 14:  # Afternoon boost for defensive sectors
+            if sector in ['XLV', 'XLP', 'XLU']:
+                base_score += 4.0
+                
+        return base_score
     
     def _calculate_volatility_score(self, bars: List[Dict]) -> float:
         """Calculate volatility-based score"""
