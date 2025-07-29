@@ -118,6 +118,28 @@ def update_stock_selection():
         logger.error(f"Manual stock selection update error: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/test_telegram', methods=['POST'])
+def test_telegram():
+    """Test Telegram bot connectivity"""
+    try:
+        telegram_node = workflow_engine.telegram_node
+        success = telegram_node.send_message("🤖 Telegram Bot Test: Connection successful! Your trading bot notifications are now active.")
+        
+        if success:
+            return jsonify({
+                'status': 'success',
+                'message': 'Telegram test message sent successfully'
+            })
+        else:
+            return jsonify({
+                'status': 'error',
+                'message': 'Failed to send Telegram message'
+            }), 500
+            
+    except Exception as e:
+        logger.error(f"Telegram test error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 def run_scheduled_tasks():
     """Background thread for scheduled tasks"""
     while True:
