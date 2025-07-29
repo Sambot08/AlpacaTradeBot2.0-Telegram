@@ -94,8 +94,8 @@ class StockSelectorNode:
             stock_data = self._get_market_data_batch(self.stock_universe)
             
             if not stock_data:
-                logger.warning("No market data available, using default stocks")
-                return ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'SPY']
+                logger.warning("No market data available, using diversified intelligent selection")
+                return self._get_diversified_fallback_selection(max_stocks, sector_weights, time_factor)
             
             # 4. Score each stock with enhanced criteria
             scored_stocks = []
@@ -146,8 +146,8 @@ class StockSelectorNode:
             
         except Exception as e:
             logger.error(f"Stock selection error: {str(e)}")
-            # Fallback to default selection
-            return ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'SPY']
+            # Fallback to diversified selection
+            return self._get_diversified_fallback_selection(max_stocks, {}, 1.0)
     
     def _get_market_data_batch(self, symbols: List[str]) -> Dict:
         """Get market data for multiple symbols efficiently"""
@@ -431,6 +431,91 @@ class StockSelectorNode:
             logger.warning(f"LLM sentiment analysis error: {str(e)}")
             # Return neutral scores for all symbols
             return {symbol: 0.5 for symbol in symbols}
+    
+    def _get_diversified_fallback_selection(self, max_stocks: int, sector_weights: Dict, time_factor: float) -> List[str]:
+        """Intelligent diversified stock selection when market data is unavailable"""
+        try:
+            # Create diversified selection pools by sector
+            sector_pools = {
+                'XLK': ['AAPL', 'MSFT', 'GOOGL', 'NVDA', 'META'],  # Tech
+                'XLF': ['JPM', 'BAC', 'V', 'MA', 'GS'],           # Finance  
+                'XLV': ['JNJ', 'UNH', 'PFE', 'ABBV', 'MRK'],     # Healthcare
+                'XLY': ['HD', 'NKE', 'AMZN'],                     # Consumer Discretionary
+                'XLP': ['KO', 'PEP', 'WMT', 'MCD'],              # Consumer Staples
+                'XLI': ['BA', 'CAT', 'GE', 'MMM'],               # Industrial
+                'XLE': ['XOM', 'CVX', 'COP'],                     # Energy
+                'XLU': ['SPY', 'QQQ', 'IWM'],                     # Utilities/ETFs
+            }
+            
+            # Time-based sector preferences
+            current_hour = datetime.now().hour
+            selected_stocks = []
+            
+            # Smart sector rotation based on time and market conditions
+            if current_hour < 11:  # Morning - favor tech and growth
+                priority_sectors = ['XLK', 'XLY', 'XLV', 'XLF', 'XLP']
+            elif current_hour < 14:  # Midday - balanced selection
+                priority_sectors = ['XLF', 'XLV', 'XLP', 'XLK', 'XLI']  
+            else:  # Afternoon - defensive and value
+                priority_sectors = ['XLV', 'XLP', 'XLF', 'XLU', 'XLE']
+            
+            # Select stocks ensuring sector diversification
+            used_sectors = set()
+            for sector in priority_sectors:
+                if len(selected_stocks) >= max_stocks:
+                    break
+                    
+                if sector in sector_pools and sector not in used_sectors:
+                    # Apply sector weight preference
+                    sector_weight = sector_weights.get(sector, 1.0)
+                    
+                    # Pick best stock from sector based on various criteria
+                    sector_stocks = sector_pools[sector]
+                    
+                    # Intelligent selection within sector
+                    if sector == 'XLK' and sector_weight > 1.1:  # Strong tech
+                        preferred = 'NVDA' if current_hour < 12 else 'MSFT'
+                    elif sector == 'XLF' and sector_weight > 1.1:  # Strong finance
+                        preferred = 'JPM'
+                    elif sector == 'XLV':  # Healthcare - always solid
+                        preferred = 'UNH' if current_hour > 13 else 'JNJ'
+                    elif sector == 'XLY':  # Consumer discretionary
+                        preferred = 'HD' if current_hour < 12 else 'AMZN'
+                    elif sector == 'XLP':  # Consumer staples - defensive
+                        preferred = 'KO'
+                    else:
+                        preferred = sector_stocks[0]  # Default to first
+                    
+                    if preferred in sector_stocks:
+                        selected_stocks.append(preferred)
+                    else:
+                        selected_stocks.append(sector_stocks[0])
+                        
+                    used_sectors.add(sector)
+            
+            # Fill remaining slots with high-quality diversified picks
+            remaining_picks = ['TSLA', 'NFLX', 'WFC', 'PEP', 'CAT']
+            for stock in remaining_picks:
+                if len(selected_stocks) >= max_stocks:
+                    break
+                if stock not in selected_stocks:
+                    selected_stocks.append(stock)
+            
+            # Ensure we have ETF for stability if space allows
+            if len(selected_stocks) < max_stocks and 'SPY' not in selected_stocks:
+                selected_stocks.append('SPY')
+            
+            final_selection = selected_stocks[:max_stocks]
+            
+            logger.info(f"Diversified fallback selection: {final_selection}")
+            logger.info(f"Sector distribution: {[self.stock_sectors.get(s, 'ETF') for s in final_selection]}")
+            
+            return final_selection
+            
+        except Exception as e:
+            logger.error(f"Diversified fallback selection error: {str(e)}")
+            # Last resort - manually diversified selection
+            return ['AAPL', 'JPM', 'JNJ', 'HD', 'SPY']
     
     def _calculate_stock_score(self, symbol: str, data: Dict) -> float:
         """Calculate a composite score for stock selection"""
