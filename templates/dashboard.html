@@ -1,0 +1,420 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Trading Bot Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🤖</text></svg>">
+</head>
+<body>
+    <div class="container">
+        <!-- Header -->
+        <div class="header fade-in">
+            <h1>
+                <span class="logo">🤖</span>
+                AI Trading Bot
+            </h1>
+            <div class="status">
+                <div class="market-hours">
+                    <div class="indicator market-open" id="market-indicator"></div>
+                    <span id="market-status">Market Open</span>
+                </div>
+                <div class="status-indicator status-active" id="bot-status">
+                    Active
+                </div>
+                <div class="controls">
+                    <button class="btn btn-primary" onclick="startTrading()">Start Trading</button>
+                    <button class="btn btn-danger" onclick="stopTrading()">Stop Trading</button>
+                    <button class="btn btn-secondary" onclick="refreshData()">Refresh</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Cards -->
+        <div class="status-cards fade-in">
+            <div class="status-card">
+                <h4>System Status</h4>
+                <div class="status-value" id="system-status">Operational</div>
+            </div>
+            <div class="status-card">
+                <h4>Last Cycle</h4>
+                <div class="status-value" id="last-cycle">
+                    {% if performance and performance.get('last_cycle') %}
+                        {{ performance.last_cycle }}
+                    {% else %}
+                        Never
+                    {% endif %}
+                </div>
+            </div>
+            <div class="status-card">
+                <h4>Active Positions</h4>
+                <div class="status-value" id="active-positions">
+                    {{ performance.get('positions_count', 0) }}
+                </div>
+            </div>
+            <div class="status-card">
+                <h4>Trades Today</h4>
+                <div class="status-value" id="trades-today">
+                    {{ performance.get('trades_today', 0) }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance Metrics -->
+        <div class="metrics-grid fade-in">
+            <div class="metric-card">
+                <h3>Total Trades</h3>
+                <div class="value">{{ performance.get('total_trades', 0) }}</div>
+                <div class="change neutral">All Time</div>
+            </div>
+            <div class="metric-card">
+                <h3>Win Rate</h3>
+                <div class="value">{{ "%.1f"|format(performance.get('win_rate', 0)) }}%</div>
+                <div class="change {{ 'positive' if performance.get('win_rate', 0) >= 60 else 'negative' if performance.get('win_rate', 0) < 50 else 'neutral' }}">
+                    {{ 'Above Average' if performance.get('win_rate', 0) >= 60 else 'Below Average' if performance.get('win_rate', 0) < 50 else 'Average' }}
+                </div>
+            </div>
+            <div class="metric-card">
+                <h3>Total Return</h3>
+                <div class="value {{ 'positive' if performance.get('total_return', 0) >= 0 else 'negative' }}">
+                    ${{ "{:+,.2f}".format(performance.get('total_return', 0)) }}
+                </div>
+                <div class="change {{ 'positive' if performance.get('total_return', 0) >= 0 else 'negative' }}">
+                    {{ '+' if performance.get('total_return', 0) >= 0 else '' }}{{ "%.2f"|format(performance.get('total_return', 0)) }}%
+                </div>
+            </div>
+            <div class="metric-card">
+                <h3>Profitable Trades</h3>
+                <div class="value">{{ performance.get('profitable_trades', 0) }}</div>
+                <div class="change positive">
+                    {{ performance.get('profitable_trades', 0) }}/{{ performance.get('total_trades', 0) }}
+                </div>
+            </div>
+        </div>
+
+        <!-- Dashboard Grid -->
+        <div class="dashboard-grid">
+            <!-- Recent Trades -->
+            <div class="card fade-in">
+                <h2>📊 Recent Trades</h2>
+                <div class="table-container">
+                    {% if trades and trades|length > 0 %}
+                        <table class="trades-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Symbol</th>
+                                    <th>Action</th>
+                                    <th>Quantity</th>
+                                    <th>Price</th>
+                                    <th>Confidence</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for trade in trades[:10] %}
+                                <tr>
+                                    <td>
+                                        {% if trade.get('timestamp') %}
+                                            {{ trade.timestamp.strftime('%H:%M:%S') if trade.timestamp else 'N/A' }}
+                                        {% else %}
+                                            N/A
+                                        {% endif %}
+                                    </td>
+                                    <td><strong>{{ trade.get('symbol', 'N/A') }}</strong></td>
+                                    <td>
+                                        <span class="trade-action trade-{{ trade.get('action', '').lower() }}">
+                                            {{ trade.get('action', 'N/A') }}
+                                        </span>
+                                    </td>
+                                    <td>{{ trade.get('quantity', 0) }}</td>
+                                    <td>${{ "%.2f"|format(trade.get('price', 0)) }}</td>
+                                    <td>
+                                        {% set confidence = trade.get('confidence', 0) %}
+                                        <span class="confidence-badge {{ 'confidence-high' if confidence >= 8 else 'confidence-medium' if confidence >= 6 else 'confidence-low' }}">
+                                            {{ confidence }}/10
+                                        </span>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    {% else %}
+                        <div class="empty-state">
+                            <div class="icon">📈</div>
+                            <h3>No Trades Yet</h3>
+                            <p>Trading activity will appear here once the bot starts making trades.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- System Information -->
+            <div class="card fade-in">
+                <h2>⚙️ System Information</h2>
+                <div class="status-cards">
+                    <div class="status-card">
+                        <h4>Trading Mode</h4>
+                        <div class="status-value">Paper Trading</div>
+                    </div>
+                    <div class="status-card">
+                        <h4>AI Model</h4>
+                        <div class="status-value">GPT-3.5 Turbo</div>
+                    </div>
+                    <div class="status-card">
+                        <h4>Broker</h4>
+                        <div class="status-value">Alpaca Markets</div>
+                    </div>
+                    <div class="status-card">
+                        <h4>Data Source</h4>
+                        <div class="status-value">Alpaca + Alpha Vantage</div>
+                    </div>
+                </div>
+
+                <div style="margin-top: 20px;">
+                    <h4>Monitored Symbols</h4>
+                    <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;">
+                        <span class="trade-action trade-hold">AAPL</span>
+                        <span class="trade-action trade-hold">MSFT</span>
+                        <span class="trade-action trade-hold">GOOGL</span>
+                        <span class="trade-action trade-hold">TSLA</span>
+                        <span class="trade-action trade-hold">AMZN</span>
+                    </div>
+                </div>
+
+                <div style="margin-top: 20px;">
+                    <h4>Risk Management</h4>
+                    <ul style="list-style: none; padding: 0; margin-top: 10px;">
+                        <li style="padding: 5px 0; display: flex; justify-content: space-between;">
+                            <span>Max Position Size:</span>
+                            <strong>$1,000</strong>
+                        </li>
+                        <li style="padding: 5px 0; display: flex; justify-content: space-between;">
+                            <span>Stop Loss:</span>
+                            <strong>5%</strong>
+                        </li>
+                        <li style="padding: 5px 0; display: flex; justify-content: space-between;">
+                            <span>Take Profit:</span>
+                            <strong>10%</strong>
+                        </li>
+                        <li style="padding: 5px 0; display: flex; justify-content: space-between;">
+                            <span>Risk per Trade:</span>
+                            <strong>2%</strong>
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <!-- Alerts Section -->
+        <div class="card fade-in" id="alerts-section" style="display: none;">
+            <h2>🚨 Alerts & Notifications</h2>
+            <div id="alerts-container">
+                <!-- Alerts will be dynamically added here -->
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let refreshInterval;
+        let isTrading = false;
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            updateSystemStatus();
+            startAutoRefresh();
+        });
+
+        // Start trading
+        async function startTrading() {
+            try {
+                showAlert('Starting trading bot...', 'info');
+                
+                const response = await fetch('/api/start_trading', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showAlert(result.status, 'success');
+                    isTrading = true;
+                    updateBotStatus();
+                } else {
+                    showAlert('Error: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Failed to start trading: ' + error.message, 'danger');
+            }
+        }
+
+        // Stop trading
+        async function stopTrading() {
+            try {
+                showAlert('Stopping trading bot...', 'info');
+                
+                const response = await fetch('/api/stop_trading', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showAlert(result.status, 'warning');
+                    isTrading = false;
+                    updateBotStatus();
+                } else {
+                    showAlert('Error: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Failed to stop trading: ' + error.message, 'danger');
+            }
+        }
+
+        // Refresh data
+        async function refreshData() {
+            try {
+                showAlert('Refreshing data...', 'info');
+                
+                // Refresh the page to get latest data
+                window.location.reload();
+                
+            } catch (error) {
+                showAlert('Failed to refresh data: ' + error.message, 'danger');
+            }
+        }
+
+        // Update system status
+        async function updateSystemStatus() {
+            try {
+                const response = await fetch('/api/status');
+                const status = await response.json();
+                
+                if (response.ok) {
+                    isTrading = status.is_trading;
+                    updateBotStatus();
+                    
+                    // Update last cycle
+                    const lastCycleElement = document.getElementById('last-cycle');
+                    if (lastCycleElement && status.last_cycle) {
+                        const date = new Date(status.last_cycle);
+                        lastCycleElement.textContent = date.toLocaleTimeString();
+                    }
+                    
+                    // Update trades today
+                    const tradesTodayElement = document.getElementById('trades-today');
+                    if (tradesTodayElement) {
+                        tradesTodayElement.textContent = status.trades_today || 0;
+                    }
+                    
+                    // Update market status
+                    updateMarketStatus(status.market_hours);
+                    
+                } else {
+                    console.error('Failed to get status:', status.error);
+                }
+            } catch (error) {
+                console.error('Status update error:', error);
+            }
+        }
+
+        // Update bot status display
+        function updateBotStatus() {
+            const statusElement = document.getElementById('bot-status');
+            if (statusElement) {
+                if (isTrading) {
+                    statusElement.textContent = 'Active';
+                    statusElement.className = 'status-indicator status-active';
+                } else {
+                    statusElement.textContent = 'Inactive';
+                    statusElement.className = 'status-indicator status-inactive';
+                }
+            }
+        }
+
+        // Update market status
+        function updateMarketStatus(isOpen) {
+            const indicator = document.getElementById('market-indicator');
+            const status = document.getElementById('market-status');
+            
+            if (indicator && status) {
+                if (isOpen) {
+                    indicator.className = 'indicator market-open';
+                    status.textContent = 'Market Open';
+                } else {
+                    indicator.className = 'indicator market-closed';
+                    status.textContent = 'Market Closed';
+                }
+            }
+        }
+
+        // Show alert
+        function showAlert(message, type) {
+            const alertsSection = document.getElementById('alerts-section');
+            const alertsContainer = document.getElementById('alerts-container');
+            
+            if (alertsSection && alertsContainer) {
+                alertsSection.style.display = 'block';
+                
+                const alert = document.createElement('div');
+                alert.className = `alert alert-${type}`;
+                alert.textContent = message;
+                
+                // Add timestamp
+                const timestamp = new Date().toLocaleTimeString();
+                alert.innerHTML = `<strong>${timestamp}:</strong> ${message}`;
+                
+                alertsContainer.appendChild(alert);
+                
+                // Remove old alerts (keep only last 5)
+                const alerts = alertsContainer.children;
+                while (alerts.length > 5) {
+                    alertsContainer.removeChild(alerts[0]);
+                }
+                
+                // Auto-remove success and info alerts after 5 seconds
+                if (type === 'success' || type === 'info') {
+                    setTimeout(() => {
+                        if (alert.parentNode) {
+                            alert.parentNode.removeChild(alert);
+                        }
+                    }, 5000);
+                }
+            }
+        }
+
+        // Start auto-refresh
+        function startAutoRefresh() {
+            refreshInterval = setInterval(updateSystemStatus, 30000); // Every 30 seconds
+        }
+
+        // Stop auto-refresh
+        function stopAutoRefresh() {
+            if (refreshInterval) {
+                clearInterval(refreshInterval);
+            }
+        }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            stopAutoRefresh();
+        });
+
+        // Handle visibility change (pause refresh when tab is not active)
+        document.addEventListener('visibilitychange', function() {
+            if (document.hidden) {
+                stopAutoRefresh();
+            } else {
+                startAutoRefresh();
+            }
+        });
+    </script>
+</body>
+</html>
