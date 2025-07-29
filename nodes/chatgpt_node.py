@@ -18,7 +18,7 @@ class ChatGPTNode:
     
     def __init__(self):
         self.config = Config()
-        openai.api_key = self.config.OPENAI_API_KEY
+        self.client = openai.OpenAI(api_key=self.config.OPENAI_API_KEY)
         self.model = self.config.CHATGPT_CONFIG['model']
         self.temperature = self.config.CHATGPT_CONFIG['temperature']
         self.max_tokens = self.config.CHATGPT_CONFIG['max_tokens']
@@ -32,7 +32,7 @@ class ChatGPTNode:
             prompt = self._build_trading_prompt(symbol, price_data, current_position)
             
             # Get AI response
-            response = openai.ChatCompletion.create(
+            response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": "You are a professional trading assistant with expertise in technical analysis and risk management."},
@@ -43,7 +43,10 @@ class ChatGPTNode:
             )
             
             # Parse the response
-            ai_response = response.choices[0].message.content.strip()
+            ai_response = response.choices[0].message.content
+            if not ai_response:
+                return None
+            ai_response = ai_response.strip()
             decision = self._parse_trading_response(ai_response)
             
             if decision:
@@ -162,7 +165,7 @@ Provide a market sentiment analysis with:
 Format your response clearly with these sections.
 """
             
-            response = openai.ChatCompletion.create(
+            response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": "You are a market analyst providing sentiment analysis."},
@@ -172,7 +175,10 @@ Format your response clearly with these sections.
                 max_tokens=self.max_tokens
             )
             
-            analysis = response.choices[0].message.content.strip()
+            analysis = response.choices[0].message.content
+            if not analysis:
+                return None
+            analysis = analysis.strip()
             
             # Parse sentiment
             sentiment_match = re.search(r'sentiment[:\s]*(BULLISH|BEARISH|NEUTRAL)', analysis, re.IGNORECASE)
@@ -211,7 +217,7 @@ Please provide:
 Keep the response concise and actionable.
 """
             
-            response = openai.ChatCompletion.create(
+            response = self.client.chat.completions.create(
                 model=self.model,
                 messages=[
                     {"role": "system", "content": "You are a portfolio manager providing investment advice."},
@@ -221,7 +227,8 @@ Keep the response concise and actionable.
                 max_tokens=self.max_tokens
             )
             
-            return response.choices[0].message.content.strip()
+            content = response.choices[0].message.content
+            return content.strip() if content else ""
             
         except Exception as e:
             logger.error(f"Portfolio advice error: {str(e)}")

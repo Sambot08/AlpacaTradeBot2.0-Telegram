@@ -172,13 +172,17 @@
                 </div>
 
                 <div style="margin-top: 20px;">
-                    <h4>Monitored Symbols</h4>
-                    <div style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;">
-                        <span class="trade-action trade-hold">AAPL</span>
-                        <span class="trade-action trade-hold">MSFT</span>
-                        <span class="trade-action trade-hold">GOOGL</span>
-                        <span class="trade-action trade-hold">TSLA</span>
-                        <span class="trade-action trade-hold">AMZN</span>
+                    <h4>AI-Selected Stocks</h4>
+                    <div id="selected-stocks" style="display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px;">
+                        <span class="trade-action trade-hold">Loading...</span>
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <button class="btn btn-secondary" onclick="updateStockSelection()" style="font-size: 0.8em; padding: 5px 10px;">
+                            Update Selection
+                        </button>
+                        <span id="last-updated" style="font-size: 0.8em; color: #666; margin-left: 10px;">
+                            Last updated: Never
+                        </span>
                     </div>
                 </div>
 
@@ -223,6 +227,7 @@
         // Initialize dashboard
         document.addEventListener('DOMContentLoaded', function() {
             updateSystemStatus();
+            updateStockSelectionDisplay();
             startAutoRefresh();
         });
 
@@ -355,6 +360,67 @@
             }
         }
 
+        // Update stock selection display
+        async function updateStockSelectionDisplay() {
+            try {
+                const response = await fetch('/api/stock_selection');
+                const data = await response.json();
+                
+                if (response.ok) {
+                    const stocksContainer = document.getElementById('selected-stocks');
+                    const lastUpdatedElement = document.getElementById('last-updated');
+                    
+                    if (stocksContainer && data.selected_stocks) {
+                        // Clear loading text
+                        stocksContainer.innerHTML = '';
+                        
+                        // Add selected stocks
+                        data.selected_stocks.forEach(stock => {
+                            const span = document.createElement('span');
+                            span.className = 'trade-action trade-hold';
+                            span.textContent = stock;
+                            stocksContainer.appendChild(span);
+                        });
+                        
+                        // Update last updated time
+                        if (lastUpdatedElement && data.last_updated) {
+                            const date = new Date(data.last_updated);
+                            lastUpdatedElement.textContent = `Last updated: ${date.toLocaleTimeString()}`;
+                        }
+                    }
+                } else {
+                    console.error('Failed to get stock selection:', data.error);
+                }
+            } catch (error) {
+                console.error('Stock selection display error:', error);
+            }
+        }
+
+        // Update stock selection
+        async function updateStockSelection() {
+            try {
+                showAlert('Updating stock selection with AI...', 'info');
+                
+                const response = await fetch('/api/update_stock_selection', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (response.ok) {
+                    showAlert('Stock selection updated successfully!', 'success');
+                    updateStockSelectionDisplay(); // Refresh display
+                } else {
+                    showAlert('Error updating stock selection: ' + result.error, 'danger');
+                }
+            } catch (error) {
+                showAlert('Failed to update stock selection: ' + error.message, 'danger');
+            }
+        }
+
         // Show alert
         function showAlert(message, type) {
             const alertsSection = document.getElementById('alerts-section');
@@ -392,7 +458,10 @@
 
         // Start auto-refresh
         function startAutoRefresh() {
-            refreshInterval = setInterval(updateSystemStatus, 30000); // Every 30 seconds
+            refreshInterval = setInterval(() => {
+                updateSystemStatus();
+                updateStockSelectionDisplay();
+            }, 30000); // Every 30 seconds
         }
 
         // Stop auto-refresh

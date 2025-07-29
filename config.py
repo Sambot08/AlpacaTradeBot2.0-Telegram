@@ -38,6 +38,9 @@ class Config:
         'stop_loss_percentage': float(os.getenv('STOP_LOSS_PERCENTAGE', '5.0')),
         'take_profit_percentage': float(os.getenv('TAKE_PROFIT_PERCENTAGE', '10.0')),
         'symbols_to_trade': os.getenv('SYMBOLS_TO_TRADE', 'AAPL,MSFT,GOOGL,TSLA,AMZN').split(','),
+        'max_stocks_to_trade': int(os.getenv('MAX_STOCKS_TO_TRADE', '5')),
+        'use_ai_stock_selection': os.getenv('USE_AI_STOCK_SELECTION', 'true').lower() == 'true',
+        'stock_selection_interval': int(os.getenv('STOCK_SELECTION_INTERVAL', '30')),  # minutes
         'trading_hours': {
             'start': os.getenv('TRADING_START_HOUR', '9'),
             'end': os.getenv('TRADING_END_HOUR', '16')

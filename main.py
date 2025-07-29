@@ -94,6 +94,30 @@ def get_status():
         logger.error(f"Status error: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+@app.route('/api/stock_selection')
+def get_stock_selection():
+    """Get current stock selection info"""
+    try:
+        selection_info = workflow_engine.get_current_stock_selection()
+        return jsonify(selection_info)
+    except Exception as e:
+        logger.error(f"Stock selection error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/update_stock_selection', methods=['POST'])
+def update_stock_selection():
+    """Manually trigger stock selection update"""
+    try:
+        workflow_engine._update_selected_stocks()
+        selection_info = workflow_engine.get_current_stock_selection()
+        return jsonify({
+            'status': 'Stock selection updated',
+            'selection_info': selection_info
+        })
+    except Exception as e:
+        logger.error(f"Manual stock selection update error: {str(e)}")
+        return jsonify({'error': str(e)}), 500
+
 def run_scheduled_tasks():
     """Background thread for scheduled tasks"""
     while True:

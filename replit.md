@@ -31,7 +31,8 @@ The application follows a modular node-based architecture similar to N8N, where 
 - **Workflow Engine** (`workflow_engine.py`): Main orchestrator managing trading cycles
 - **Node System**: Individual service nodes for different functionalities:
   - **AlpacaNode**: Handles all trading operations via Alpaca API
-  - **ChatGPTNode**: AI decision-making for buy/sell signals
+  - **ChatGPTNode**: AI decision-making for buy/sell signals and market sentiment analysis
+  - **StockSelectorNode**: AI-powered intelligent stock selection system
   - **TelegramNode**: Real-time notifications via Telegram bot
   - **EmailNode**: Email notifications and reports
   - **PriceDataNode**: Multi-source price data fetching with fallbacks
@@ -45,12 +46,14 @@ The application follows a modular node-based architecture similar to N8N, where 
 
 ## Data Flow
 
-1. **Market Data Collection**: PriceDataNode fetches data from Alpaca (primary) with Alpha Vantage fallback
-2. **AI Analysis**: ChatGPTNode analyzes market data and current positions to make trading decisions
-3. **Trade Execution**: AlpacaNode executes buy/sell orders based on AI recommendations
-4. **Notifications**: TelegramNode sends real-time alerts for trades and system status
-5. **Reporting**: ReportGeneratorNode creates periodic reports sent via EmailNode
-6. **Monitoring**: Dashboard displays real-time status and trading metrics
+1. **Stock Selection**: StockSelectorNode uses AI to intelligently choose stocks to trade every 30 minutes
+2. **Market Data Collection**: PriceDataNode fetches data from Alpaca (primary) with Alpha Vantage fallback
+3. **AI Analysis**: ChatGPTNode analyzes market data and current positions to make trading decisions
+4. **Market Sentiment**: ChatGPTNode provides overall market sentiment analysis for selected stocks
+5. **Trade Execution**: AlpacaNode executes buy/sell orders based on AI recommendations
+6. **Notifications**: TelegramNode sends real-time alerts for trades, stock selections, and system status
+7. **Reporting**: ReportGeneratorNode creates periodic reports sent via EmailNode
+8. **Monitoring**: Dashboard displays real-time status, selected stocks, and trading metrics
 
 ## External Dependencies
 

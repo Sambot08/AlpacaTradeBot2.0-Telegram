@@ -13,6 +13,7 @@ from nodes.telegram_node import TelegramNode
 from nodes.email_node import EmailNode
 from nodes.price_data_node import PriceDataNode
 from nodes.report_generator_node import ReportGeneratorNode
+from nodes.stock_selector_node import StockSelectorNode
 from config import Config
 from utils.logger import setup_logger
 
@@ -33,10 +34,13 @@ class WorkflowEngine:
         self.email_node = EmailNode()
         self.price_data_node = PriceDataNode()
         self.report_generator_node = ReportGeneratorNode()
+        self.stock_selector_node = StockSelectorNode()
         
         # Trading state
         self.positions = {}
         self.trading_history = []
+        self.selected_stocks = []
+        self.last_stock_selection = None
         
         logger.info("Workflow Engine initialized")
     
@@ -79,8 +83,13 @@ class WorkflowEngine:
         try:
             logger.info("Starting trading cycle")
             
-            # Get symbols to trade
-            symbols = self.config.TRADING_CONFIG['symbols_to_trade']
+            # Update stock selection every 30 minutes or if empty
+            if self._should_update_stock_selection():
+                self._update_selected_stocks()
+            
+            # Use AI-selected stocks instead of fixed list
+            symbols = self.selected_stocks if self.selected_stocks else self.config.TRADING_CONFIG['symbols_to_trade']
+            logger.info(f"Trading cycle processing {len(symbols)} symbols: {symbols}")
             
             for symbol in symbols:
                 self._process_symbol(symbol)
@@ -238,6 +247,111 @@ Reasoning: {reasoning[:200]}...
         except Exception as e:
             logger.error(f"External signal processing error: {str(e)}")
             return {'error': str(e)}
+    
+    def _should_update_stock_selection(self) -> bool:
+        """Check if stock selection should be updated"""
+        if not self.selected_stocks or not self.last_stock_selection:
+            return True
+        
+        # Update every 30 minutes
+        time_since_last = datetime.now() - self.last_stock_selection
+        return time_since_last.total_seconds() > 1800  # 30 minutes
+    
+    def _update_selected_stocks(self):
+        """Update the list of selected stocks using AI"""
+        try:
+            logger.info("Updating stock selection using AI...")
+            
+            # Get AI-selected stocks
+            max_stocks = self.config.TRADING_CONFIG.get('max_stocks_to_trade', 5)
+            selected_stocks = self.stock_selector_node.select_trading_candidates(max_stocks)
+            
+            if selected_stocks:
+                self.selected_stocks = selected_stocks
+                self.last_stock_selection = datetime.now()
+                
+                # Get market analysis from ChatGPT
+                market_analysis = self.chatgpt_node.analyze_market_sentiment(selected_stocks)
+                
+                # Send notification about stock selection
+                self._send_stock_selection_notification(selected_stocks, market_analysis)
+                
+                logger.info(f"Updated stock selection: {selected_stocks}")
+            else:
+                logger.warning("Stock selection failed, using previous selection")
+                
+        except Exception as e:
+            logger.error(f"Stock selection update error: {str(e)}")
+            # Keep previous selection or use default
+            if not self.selected_stocks:
+                self.selected_stocks = self.config.TRADING_CONFIG['symbols_to_trade']
+    
+    def _send_stock_selection_notification(self, stocks: List[str], market_analysis: Dict):
+        """Send notification about new stock selection"""
+        try:
+            stocks_str = ", ".join(stocks)
+            
+            message = f"""
+🎯 **STOCK SELECTION UPDATE**
+
+Selected stocks for trading:
+{stocks_str}
+
+🧠 **AI Market Analysis:**
+"""
+            
+            if market_analysis:
+                sentiment = market_analysis.get('sentiment', 'NEUTRAL')
+                risk_level = market_analysis.get('risk_level', 'MEDIUM')
+                
+                sentiment_emoji = {
+                    'BULLISH': '🐂',
+                    'BEARISH': '🐻', 
+                    'NEUTRAL': '😐'
+                }.get(sentiment, '😐')
+                
+                risk_emoji = {
+                    'LOW': '🟢',
+                    'MEDIUM': '🟡',
+                    'HIGH': '🔴'
+                }.get(risk_level, '🟡')
+                
+                message += f"""
+{sentiment_emoji} Market Sentiment: {sentiment}
+{risk_emoji} Risk Level: {risk_level}
+
+💡 Trading strategy adjusted accordingly.
+"""
+            else:
+                message += "\nMarket analysis unavailable."
+            
+            message += f"\n⏰ Selection updated at {datetime.now().strftime('%H:%M:%S')}"
+            
+            self.telegram_node.send_message(message)
+            
+        except Exception as e:
+            logger.error(f"Stock selection notification error: {str(e)}")
+    
+    def get_current_stock_selection(self) -> Dict:
+        """Get current stock selection info"""
+        try:
+            sector_analysis = self.stock_selector_node.get_market_sectors_analysis()
+            
+            return {
+                'selected_stocks': self.selected_stocks,
+                'last_updated': self.last_stock_selection.isoformat() if self.last_stock_selection else None,
+                'sector_analysis': sector_analysis,
+                'selection_method': 'AI-powered intelligent selection'
+            }
+            
+        except Exception as e:
+            logger.error(f"Stock selection info error: {str(e)}")
+            return {
+                'selected_stocks': self.selected_stocks or [],
+                'last_updated': None,
+                'sector_analysis': {},
+                'selection_method': 'Default'
+            }
     
     def _is_market_hours(self) -> bool:
         """Check if current time is within trading hours"""
