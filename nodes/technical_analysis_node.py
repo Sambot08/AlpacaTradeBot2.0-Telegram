@@ -46,6 +46,9 @@ class TechnicalAnalysisNode:
             ma_50 = price_data.get('ma_50', current_price)
             rsi = price_data.get('rsi', 50)
             
+            # Debug logging to see actual data
+            logger.info(f"DEBUG {symbol}: price=${current_price:.2f}, change={price_change:.2f}%, rsi={rsi:.1f}, ma20=${ma_20:.2f}, ma50=${ma_50:.2f}")
+            
             # Default decision
             action = "HOLD"
             confidence = 5
@@ -67,15 +70,19 @@ class TechnicalAnalysisNode:
             elif rsi > 70:
                 signals.append(("SELL", 3, "RSI overbought - potential pullback"))
             
-            # Price momentum signals
-            if price_change > 5:
-                signals.append(("BUY", 2, "Strong positive momentum"))
-            elif price_change < -5:
-                signals.append(("SELL", 2, "Strong negative momentum"))
-            elif price_change > 2:
-                signals.append(("BUY", 1, "Positive momentum"))
-            elif price_change < -2:
-                signals.append(("SELL", 1, "Negative momentum"))
+            # Price momentum signals - More sensitive
+            if price_change > 3:
+                signals.append(("BUY", 3, "Strong positive momentum"))
+            elif price_change < -3:
+                signals.append(("SELL", 3, "Strong negative momentum"))
+            elif price_change > 1:
+                signals.append(("BUY", 2, "Positive momentum"))
+            elif price_change < -1:
+                signals.append(("SELL", 2, "Negative momentum"))
+            elif price_change > 0.5:
+                signals.append(("BUY", 1, "Mild positive momentum"))
+            elif price_change < -0.5:
+                signals.append(("SELL", 1, "Mild negative momentum"))
             
             # Position management
             if current_position:
@@ -91,7 +98,7 @@ class TechnicalAnalysisNode:
                 elif unrealized_pl < 0 and (current_price / avg_entry - 1) < -0.05:  # 5% loss
                     signals.append(("SELL", 5, "Stop loss - 5% loss limit"))
             
-            # Combine signals
+            # Combine signals - Made more responsive
             if signals:
                 buy_signals = [s for s in signals if s[0] == "BUY"]
                 sell_signals = [s for s in signals if s[0] == "SELL"]
@@ -99,13 +106,14 @@ class TechnicalAnalysisNode:
                 buy_strength = sum(s[1] for s in buy_signals)
                 sell_strength = sum(s[1] for s in sell_signals)
                 
-                if buy_strength > sell_strength and buy_strength >= 3:
+                # Lowered threshold from 3 to 2 for more active trading
+                if buy_strength > sell_strength and buy_strength >= 2:
                     action = "BUY"
-                    confidence = min(10, buy_strength + 2)
+                    confidence = min(10, buy_strength + 3)
                     reasoning = "; ".join([s[2] for s in buy_signals])
-                elif sell_strength > buy_strength and sell_strength >= 3:
+                elif sell_strength > buy_strength and sell_strength >= 2:
                     action = "SELL"
-                    confidence = min(10, sell_strength + 2)
+                    confidence = min(10, sell_strength + 3)
                     reasoning = "; ".join([s[2] for s in sell_signals])
                 else:
                     action = "HOLD"

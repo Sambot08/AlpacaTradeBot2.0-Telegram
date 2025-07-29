@@ -119,9 +119,9 @@ class AlpacaNode:
                 data=json.dumps(order_data)
             )
             
-            if response.status_code == 201:
+            if response.status_code in [200, 201]:
                 result = response.json()
-                logger.info(f"Buy order placed for {symbol}: {quantity} shares")
+                logger.info(f"Buy order placed for {symbol}: {quantity} shares - Order ID: {result.get('id', 'N/A')}")
                 return result
             else:
                 logger.error(f"Failed to place buy order for {symbol}: {response.status_code} - {response.text}")
@@ -160,9 +160,9 @@ class AlpacaNode:
                 data=json.dumps(order_data)
             )
             
-            if response.status_code == 201:
+            if response.status_code in [200, 201]:
                 result = response.json()
-                logger.info(f"Sell order placed for {symbol}: {quantity} shares")
+                logger.info(f"Sell order placed for {symbol}: {quantity} shares - Order ID: {result.get('id', 'N/A')}")
                 return result
             else:
                 logger.error(f"Failed to place sell order for {symbol}: {response.status_code} - {response.text}")

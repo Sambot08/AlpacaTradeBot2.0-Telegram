@@ -85,6 +85,8 @@ def stop_trading():
         logger.error(f"Stop trading error: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
+
+
 @app.route('/api/status')
 def get_status():
     """Get current trading status"""
