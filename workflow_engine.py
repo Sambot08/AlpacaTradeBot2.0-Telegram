@@ -354,18 +354,25 @@ Selected stocks for trading:
             }
     
     def _is_market_hours(self) -> bool:
-        """Check if current time is within trading hours"""
-        now = datetime.now()
+        """Check if current time is within trading hours (Eastern Time)"""
+        from datetime import timedelta
+        
+        # Get current UTC time and convert to Eastern Time
+        now_utc = datetime.utcnow()
+        # EST is UTC-5, EDT is UTC-4. For simplicity, use UTC-5 (EST)
+        est_offset = timedelta(hours=-5)
+        now_et = now_utc + est_offset
         
         # Skip weekends
-        if now.weekday() >= 5:  # Saturday = 5, Sunday = 6
+        if now_et.weekday() >= 5:  # Saturday = 5, Sunday = 6
             return False
         
-        # Check trading hours
-        start_hour = int(self.config.TRADING_CONFIG['trading_hours']['start'])
-        end_hour = int(self.config.TRADING_CONFIG['trading_hours']['end'])
+        # Check trading hours (9:30 AM - 4:00 PM ET)
+        current_time = now_et.time()
+        market_open = datetime.strptime("09:30", "%H:%M").time()
+        market_close = datetime.strptime("16:00", "%H:%M").time()
         
-        return start_hour <= now.hour < end_hour
+        return market_open <= current_time < market_close
     
     def get_status(self) -> Dict:
         """Get current trading status"""
