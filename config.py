@@ -14,7 +14,7 @@ class Config:
     # API Keys - Retrieved from environment variables
     ALPACA_API_KEY = os.getenv('ALPACA_API_KEY', '')
     ALPACA_SECRET_KEY = os.getenv('ALPACA_SECRET_KEY', '')
-    OPENAI_API_KEY = os.getenv('OPENAI_API_KEY', '')
+
     TELEGRAM_BOT_TOKEN = os.getenv('TELEGRAM_BOT_TOKEN', '')
     TELEGRAM_CHAT_ID = os.getenv('TELEGRAM_CHAT_ID', '')
     ALPHA_VANTAGE_API_KEY = os.getenv('ALPHA_VANTAGE_API_KEY', '')
@@ -47,35 +47,16 @@ class Config:
         }
     }
     
-    # ChatGPT configuration
-    CHATGPT_CONFIG = {
-        'model': os.getenv('CHATGPT_MODEL', 'gpt-3.5-turbo'),
-        'temperature': float(os.getenv('CHATGPT_TEMPERATURE', '0.3')),
-        'max_tokens': int(os.getenv('CHATGPT_MAX_TOKENS', '500')),
-        'trading_prompt_template': """
-You are an AI trading assistant. Analyze the following market data and provide a trading decision.
-
-Market Data:
-Symbol: {symbol}
-Current Price: ${current_price}
-Price Change: {price_change}%
-Volume: {volume}
-RSI: {rsi}
-Moving Average (20): ${ma_20}
-Moving Average (50): ${ma_50}
-
-Additional Context:
-{additional_context}
-
-Based on this data, should I BUY, SELL, or HOLD this stock?
-Provide your reasoning and a confidence level (1-10).
-
-Response format:
-ACTION: [BUY/SELL/HOLD]
-CONFIDENCE: [1-10]
-REASONING: [Your analysis]
-QUANTITY: [Number of shares, if applicable]
-"""
+    # Technical Analysis configuration
+    TECHNICAL_CONFIG = {
+        'rsi_oversold': 30,
+        'rsi_overbought': 70,
+        'ma_period_short': 20,
+        'ma_period_long': 50,
+        'momentum_threshold': 2.0,
+        'volume_threshold': 1.5,
+        'stop_loss_percent': 5.0,
+        'take_profit_percent': 10.0
     }
     
     @classmethod

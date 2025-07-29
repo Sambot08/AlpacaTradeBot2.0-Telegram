@@ -87,7 +87,7 @@ class WorkflowEngine:
             if self._should_update_stock_selection():
                 self._update_selected_stocks()
             
-            # Use AI-selected stocks instead of fixed list
+            # Use dynamically-selected stocks instead of fixed list
             symbols = self.selected_stocks if self.selected_stocks else self.config.TRADING_CONFIG['symbols_to_trade']
             logger.info(f"Trading cycle processing {len(symbols)} symbols: {symbols}")
             
@@ -115,8 +115,8 @@ class WorkflowEngine:
             # Step 2: Get current position (Alpaca Node)
             current_position = self.alpaca_node.get_position(symbol)
             
-            # Step 3: Analyze with ChatGPT (ChatGPT Node)
-            trading_decision = self.chatgpt_node.get_trading_decision(
+            # Step 3: Analyze with Technical Analysis (Technical Analysis Node)
+            trading_decision = self.technical_analysis_node.get_trading_decision(
                 symbol, price_data, current_position
             )
             
@@ -258,11 +258,11 @@ Reasoning: {reasoning[:200]}...
         return time_since_last.total_seconds() > 1800  # 30 minutes
     
     def _update_selected_stocks(self):
-        """Update the list of selected stocks using AI"""
+        """Update the list of selected stocks using technical analysis"""
         try:
-            logger.info("Updating stock selection using AI...")
+            logger.info("Updating stock selection using technical analysis...")
             
-            # Get AI-selected stocks
+            # Get technically-selected stocks
             max_stocks = self.config.TRADING_CONFIG.get('max_stocks_to_trade', 5)
             selected_stocks = self.stock_selector_node.select_trading_candidates(max_stocks)
             
@@ -270,8 +270,8 @@ Reasoning: {reasoning[:200]}...
                 self.selected_stocks = selected_stocks
                 self.last_stock_selection = datetime.now()
                 
-                # Get market analysis from ChatGPT
-                market_analysis = self.chatgpt_node.analyze_market_sentiment(selected_stocks)
+                # Get market analysis from Technical Analysis
+                market_analysis = self.technical_analysis_node.analyze_market_sentiment(selected_stocks)
                 
                 # Send notification about stock selection
                 self._send_stock_selection_notification(selected_stocks, market_analysis)
@@ -297,7 +297,7 @@ Reasoning: {reasoning[:200]}...
 Selected stocks for trading:
 {stocks_str}
 
-🧠 **AI Market Analysis:**
+📊 **Technical Market Analysis:**
 """
             
             if market_analysis:
