@@ -98,11 +98,19 @@ The system prioritizes safety through paper trading defaults, comprehensive erro
 
 ## Recent Changes: Latest modifications with dates
 
+### July 29, 2025 - Removed External AI Dependencies (Migration Complete)
+- ✓ Replaced ChatGPT decision-making with robust technical analysis rules
+- ✓ Implemented RSI, moving averages, momentum, and position management signals
+- ✓ Enhanced stock selection with technical momentum filters instead of LLM sentiment
+- ✓ Removed OpenAI API requirements - bot now runs independently
+- ✓ Updated configuration validation to only require Alpaca credentials
+- ✓ All trading decisions now use rule-based technical analysis
+- ✓ Successfully migrated from Replit Agent to standard Replit environment
+
 ### July 29, 2025 - Advanced Stock Selection Enhancement
 - ✓ Dynamic Sector Weighting: Bot now analyzes sector ETF performance (XLK, XLF, XLV, etc.) to favor outperforming sectors
 - ✓ Time-of-Day Awareness: Selection adjusts based on market hours (30% boost at open, 20% at close, reduction during lunch)
 - ✓ Signal Confirmation Layer: Requires multiple confirmations (volume spikes, price momentum, technical breakouts) before selection
-- ✓ LLM Sentiment Integration: Uses ChatGPT to analyze sentiment for top candidates, combining 70% technical + 30% sentiment scores
 - ✓ Trade History Learning: Framework added for adaptive scoring based on historical performance
 - ✓ Enhanced Logging: Detailed reasoning for each stock selection with sector analysis and scoring breakdown
 

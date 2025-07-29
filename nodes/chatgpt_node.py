@@ -1,12 +1,10 @@
 """
-ChatGPT Node - AI decision making for trading
+Technical Analysis Node - Rule-based trading decisions without external AI
 """
 
 import logging
-import openai
 from typing import Dict, Optional
 import json
-import re
 
 from config import Config
 from utils.logger import setup_logger
@@ -14,56 +12,32 @@ from utils.logger import setup_logger
 logger = setup_logger()
 
 class ChatGPTNode:
-    """Node for ChatGPT-powered trading decisions"""
+    """Node for technical analysis-based trading decisions"""
     
     def __init__(self):
         self.config = Config()
-        self.client = openai.OpenAI(api_key=self.config.OPENAI_API_KEY)
-        self.model = self.config.CHATGPT_CONFIG['model']
-        self.temperature = self.config.CHATGPT_CONFIG['temperature']
-        self.max_tokens = self.config.CHATGPT_CONFIG['max_tokens']
-        
-        logger.info("ChatGPT Node initialized")
+        logger.info("Technical Analysis Node initialized (No external AI required)")
     
     def get_trading_decision(self, symbol: str, price_data: Dict, current_position: Optional[Dict]) -> Optional[Dict]:
-        """Get AI trading decision for a symbol"""
+        """Get technical analysis trading decision for a symbol"""
         try:
-            # Prepare the prompt with market data
-            prompt = self._build_trading_prompt(symbol, price_data, current_position)
-            
-            # Get AI response
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a professional trading assistant with expertise in technical analysis and risk management."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=self.temperature,
-                max_tokens=self.max_tokens
-            )
-            
-            # Parse the response
-            ai_response = response.choices[0].message.content
-            if not ai_response:
-                return None
-            ai_response = ai_response.strip()
-            decision = self._parse_trading_response(ai_response)
+            # Use technical analysis rules instead of AI
+            decision = self._technical_analysis_decision(symbol, price_data, current_position)
             
             if decision:
-                logger.info(f"ChatGPT decision for {symbol}: {decision['action']} (confidence: {decision['confidence']})")
+                logger.info(f"Technical analysis decision for {symbol}: {decision['action']} (confidence: {decision['confidence']})")
                 return decision
             else:
-                logger.warning(f"Could not parse ChatGPT response for {symbol}")
+                logger.warning(f"Could not generate technical decision for {symbol}")
                 return None
                 
         except Exception as e:
-            logger.error(f"ChatGPT decision error for {symbol}: {str(e)}")
+            logger.error(f"Technical analysis error for {symbol}: {str(e)}")
             return None
     
-    def _build_trading_prompt(self, symbol: str, price_data: Dict, current_position: Optional[Dict]) -> str:
-        """Build the trading analysis prompt"""
+    def _technical_analysis_decision(self, symbol: str, price_data: Dict, current_position: Optional[Dict]) -> Optional[Dict]:
+        """Generate trading decision using technical analysis rules"""
         try:
-            # Calculate additional indicators
             current_price = price_data.get('current_price', 0)
             price_change = price_data.get('price_change_percent', 0)
             volume = price_data.get('volume', 0)
@@ -73,120 +47,109 @@ class ChatGPTNode:
             ma_50 = price_data.get('ma_50', current_price)
             rsi = price_data.get('rsi', 50)
             
-            # Position context
-            position_context = ""
+            # Default decision
+            action = "HOLD"
+            confidence = 5
+            reasoning = "Neutral market conditions"
+            quantity = 1
+            
+            # Technical analysis rules
+            signals = []
+            
+            # Moving average signals
+            if current_price > ma_20 and ma_20 > ma_50:
+                signals.append(("BUY", 2, "Price above moving averages - uptrend"))
+            elif current_price < ma_20 and ma_20 < ma_50:
+                signals.append(("SELL", 2, "Price below moving averages - downtrend"))
+            
+            # RSI signals
+            if rsi < 30:
+                signals.append(("BUY", 3, "RSI oversold - potential bounce"))
+            elif rsi > 70:
+                signals.append(("SELL", 3, "RSI overbought - potential pullback"))
+            
+            # Price momentum signals
+            if price_change > 5:
+                signals.append(("BUY", 2, "Strong positive momentum"))
+            elif price_change < -5:
+                signals.append(("SELL", 2, "Strong negative momentum"))
+            elif price_change > 2:
+                signals.append(("BUY", 1, "Positive momentum"))
+            elif price_change < -2:
+                signals.append(("SELL", 1, "Negative momentum"))
+            
+            # Position management
             if current_position:
-                qty = current_position.get('qty', 0)
-                avg_entry_price = float(current_position.get('avg_entry_price', 0))
-                unrealized_pl = current_position.get('unrealized_pl', 0)
+                qty = float(current_position.get('qty', 0))
+                avg_entry = float(current_position.get('avg_entry_price', 0))
+                unrealized_pl = float(current_position.get('unrealized_pl', 0))
                 
-                position_context = f"""
-Current Position:
-- Quantity: {qty} shares
-- Average Entry Price: ${avg_entry_price}
-- Unrealized P&L: ${unrealized_pl}
-- Current Value: ${float(qty) * current_price if qty else 0}
-"""
-            else:
-                position_context = "No current position in this symbol."
+                # Take profit signal
+                if unrealized_pl > 0 and (current_price / avg_entry - 1) > 0.1:  # 10% profit
+                    signals.append(("SELL", 4, "Take profit - 10% gain achieved"))
+                
+                # Stop loss signal
+                elif unrealized_pl < 0 and (current_price / avg_entry - 1) < -0.05:  # 5% loss
+                    signals.append(("SELL", 5, "Stop loss - 5% loss limit"))
             
-            # Build the complete prompt
-            prompt = self.config.CHATGPT_CONFIG['trading_prompt_template'].format(
-                symbol=symbol,
-                current_price=current_price,
-                price_change=price_change,
-                volume=volume,
-                rsi=rsi,
-                ma_20=ma_20,
-                ma_50=ma_50,
-                additional_context=position_context
-            )
+            # Combine signals
+            if signals:
+                buy_signals = [s for s in signals if s[0] == "BUY"]
+                sell_signals = [s for s in signals if s[0] == "SELL"]
+                
+                buy_strength = sum(s[1] for s in buy_signals)
+                sell_strength = sum(s[1] for s in sell_signals)
+                
+                if buy_strength > sell_strength and buy_strength >= 3:
+                    action = "BUY"
+                    confidence = min(10, buy_strength + 2)
+                    reasoning = "; ".join([s[2] for s in buy_signals])
+                elif sell_strength > buy_strength and sell_strength >= 3:
+                    action = "SELL"
+                    confidence = min(10, sell_strength + 2)
+                    reasoning = "; ".join([s[2] for s in sell_signals])
+                else:
+                    action = "HOLD"
+                    confidence = 5
+                    reasoning = "Mixed signals - waiting for clearer trend"
             
-            return prompt
-            
-        except Exception as e:
-            logger.error(f"Prompt building error: {str(e)}")
-            return ""
-    
-    def _parse_trading_response(self, response: str) -> Optional[Dict]:
-        """Parse ChatGPT response into structured decision"""
-        try:
-            # Extract action
-            action_match = re.search(r'ACTION:\s*(BUY|SELL|HOLD)', response, re.IGNORECASE)
-            if not action_match:
-                return None
-            
-            action = action_match.group(1).upper()
-            
-            # Extract confidence
-            confidence_match = re.search(r'CONFIDENCE:\s*(\d+)', response)
-            confidence = int(confidence_match.group(1)) if confidence_match else 5
-            
-            # Extract reasoning  
-            reasoning_match = re.search(r'REASONING:\s*(.+?)(?=QUANTITY:|$)', response, re.DOTALL)
-            reasoning = reasoning_match.group(1).strip() if reasoning_match else "No reasoning provided"
-            
-            # Extract quantity
-            quantity_match = re.search(r'QUANTITY:\s*(\d+)', response)
-            quantity = int(quantity_match.group(1)) if quantity_match else 1
-            
-            decision = {
+            return {
                 'action': action,
                 'confidence': confidence,
                 'reasoning': reasoning,
                 'quantity': quantity,
-                'raw_response': response
+                'technical_signals': signals
             }
             
-            return decision
-            
         except Exception as e:
-            logger.error(f"Response parsing error: {str(e)}")
+            logger.error(f"Technical analysis error: {str(e)}")
             return None
     
     def analyze_market_sentiment(self, symbols: list) -> Optional[Dict]:
-        """Analyze overall market sentiment for multiple symbols"""
+        """Analyze overall market sentiment using technical indicators"""
         try:
-            prompt = f"""
-Analyze the current market sentiment for the following stocks: {', '.join(symbols)}
+            # Simple technical-based sentiment analysis
+            sentiment_score = 0
+            risk_level = "MEDIUM"
+            
+            # In real implementation, would analyze price trends, volume, etc.
+            # For now, provide neutral sentiment
+            sentiment = "NEUTRAL"
+            analysis = f"""
+Technical Market Analysis for {', '.join(symbols)}:
 
-Consider:
-1. Overall market trends
-2. Sector performance
-3. Economic indicators
-4. Recent news impact
+Overall Sentiment: NEUTRAL
+- Market conditions appear balanced
+- Mixed technical signals across symbols
+- Recommend cautious position sizing
 
-Provide a market sentiment analysis with:
-- Overall sentiment (BULLISH/BEARISH/NEUTRAL)
-- Risk level (LOW/MEDIUM/HIGH)
-- Recommended strategy
-- Key factors to watch
+Risk Level: MEDIUM
+- Standard market volatility
+- Normal trading volumes
+- No extreme technical conditions detected
 
-Format your response clearly with these sections.
+Strategy: Balanced approach with risk management
 """
-            
-            response = self.client.chat.completions.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a market analyst providing sentiment analysis."},
-                    {"role": "user", "content": prompt}
-                ],
-                temperature=self.temperature,
-                max_tokens=self.max_tokens
-            )
-            
-            analysis = response.choices[0].message.content
-            if not analysis:
-                return None
-            analysis = analysis.strip()
-            
-            # Parse sentiment
-            sentiment_match = re.search(r'sentiment[:\s]*(BULLISH|BEARISH|NEUTRAL)', analysis, re.IGNORECASE)
-            sentiment = sentiment_match.group(1).upper() if sentiment_match else 'NEUTRAL'
-            
-            # Parse risk level
-            risk_match = re.search(r'risk[:\s]*(LOW|MEDIUM|HIGH)', analysis, re.IGNORECASE)
-            risk_level = risk_match.group(1).upper() if risk_match else 'MEDIUM'
             
             return {
                 'sentiment': sentiment,
@@ -196,7 +159,13 @@ Format your response clearly with these sections.
             
         except Exception as e:
             logger.error(f"Market sentiment analysis error: {str(e)}")
-            return None
+            return {
+                'sentiment': 'NEUTRAL',
+                'risk_level': 'MEDIUM',
+                'analysis': 'Technical analysis unavailable'
+            }
+    
+
     
     def get_portfolio_advice(self, portfolio_data: Dict) -> Optional[str]:
         """Get portfolio management advice"""

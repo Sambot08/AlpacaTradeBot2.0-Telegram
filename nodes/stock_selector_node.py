@@ -1,5 +1,5 @@
 """
-Stock Selector Node - AI-powered stock selection for trading
+Stock Selector Node - Technical analysis-based stock selection for trading
 """
 
 import logging
@@ -7,7 +7,7 @@ import requests
 from typing import Dict, List, Optional
 import json
 from datetime import datetime, timedelta
-import openai
+import random
 
 from config import Config
 from utils.logger import setup_logger
@@ -15,11 +15,10 @@ from utils.logger import setup_logger
 logger = setup_logger()
 
 class StockSelectorNode:
-    """Node for intelligent stock selection using multiple criteria"""
+    """Node for intelligent stock selection using technical analysis"""
     
     def __init__(self):
         self.config = Config()
-        self.client = openai.OpenAI(api_key=self.config.OPENAI_API_KEY)
         self.alpaca_headers = {
             'APCA-API-KEY-ID': self.config.ALPACA_API_KEY,
             'APCA-API-SECRET-KEY': self.config.ALPACA_SECRET_KEY,
@@ -152,10 +151,10 @@ class StockSelectorNode:
                         # Apply normal sector diversification
                         selected = self._apply_sector_diversification(scored_stocks, max_stocks)
                         
-                        # Apply LLM sentiment filter if available
+                        # Apply technical momentum filter if needed
                         if len(selected) > max_stocks:
                             top_candidates = [s for s in scored_stocks if s['symbol'] in selected]
-                            selected = self._apply_llm_sentiment_filter(top_candidates, max_stocks)
+                            selected = self._apply_technical_momentum_filter(top_candidates, max_stocks)
             else:
                 # Not enough candidates, use diversified fallback
                 selected = self._get_diversified_fallback_selection(max_stocks, sector_weights, time_factor)
@@ -357,33 +356,58 @@ class StockSelectorNode:
             logger.warning(f"Confirmation signals error for {symbol}: {str(e)}")
             return False
     
-    def _apply_llm_sentiment_filter(self, candidates: List[Dict], max_stocks: int) -> List[str]:
-        """Apply LLM sentiment analysis to filter final selections"""
+    def _apply_technical_momentum_filter(self, candidates: List[Dict], max_stocks: int) -> List[str]:
+        """Apply technical momentum analysis as final filter for stock selection"""
         try:
             if not candidates:
                 return ['AAPL', 'MSFT', 'GOOGL', 'TSLA', 'SPY']
             
-            # Extract top symbols for LLM analysis
-            symbols = [c['symbol'] for c in candidates[:max_stocks * 2]]
-            
-            # Get sentiment scores (with fallback if LLM fails)
-            sentiment_scores = self._get_llm_sentiment_scores(symbols)
-            
-            # Combine technical scores with sentiment
+            # Enhance scores with momentum and volume analysis
             final_scores = []
             for candidate in candidates:
                 symbol = candidate['symbol']
-                technical_score = candidate['score']
-                sentiment_score = sentiment_scores.get(symbol, 0.5)  # Neutral if no sentiment
+                base_score = candidate['score']
+                stock_data = candidate.get('data', {})
                 
-                # Weight: 70% technical, 30% sentiment
-                combined_score = technical_score * 0.7 + sentiment_score * technical_score * 0.3
+                # Technical momentum indicators
+                momentum_score = 0.5  # Default neutral
+                
+                # Price momentum
+                price_change = stock_data.get('price_change_percent', 0)
+                if price_change > 2:
+                    momentum_score += 0.2
+                elif price_change > 1:
+                    momentum_score += 0.1
+                elif price_change < -2:
+                    momentum_score -= 0.2
+                elif price_change < -1:
+                    momentum_score -= 0.1
+                
+                # Volume momentum (high volume + positive price = bullish)
+                volume = stock_data.get('volume', 0)
+                avg_volume = stock_data.get('avg_volume', volume)
+                if volume > avg_volume * 1.5 and price_change > 0:
+                    momentum_score += 0.15
+                elif volume > avg_volume * 1.2 and price_change > 0:
+                    momentum_score += 0.1
+                
+                # RSI consideration
+                rsi = stock_data.get('rsi', 50)
+                if 45 <= rsi <= 65:  # Healthy range
+                    momentum_score += 0.1
+                elif rsi < 30:  # Oversold - potential bounce
+                    momentum_score += 0.05
+                elif rsi > 80:  # Very overbought - risk
+                    momentum_score -= 0.1
+                
+                # Combine base score with momentum (80% base, 20% momentum)
+                combined_score = base_score * 0.8 + momentum_score * base_score * 0.2
                 
                 final_scores.append({
                     'symbol': symbol,
                     'combined_score': combined_score,
-                    'technical_score': technical_score,
-                    'sentiment_score': sentiment_score
+                    'base_score': base_score,
+                    'momentum_score': momentum_score
                 })
             
             # Sort by combined score and return top selections
@@ -391,72 +415,18 @@ class StockSelectorNode:
             selected = [stock['symbol'] for stock in final_scores[:max_stocks]]
             
             # Log the reasoning
-            logger.info("LLM-enhanced selection reasoning:")
+            logger.info("Technical momentum-enhanced selection:")
             for i, stock in enumerate(final_scores[:max_stocks]):
-                logger.info(f"#{i+1} {stock['symbol']}: combined={stock['combined_score']:.2f}, technical={stock['technical_score']:.2f}, sentiment={stock['sentiment_score']:.2f}")
+                logger.info(f"#{i+1} {stock['symbol']}: combined={stock['combined_score']:.2f}, base={stock['base_score']:.2f}, momentum={stock['momentum_score']:.2f}")
             
             return selected
             
         except Exception as e:
-            logger.warning(f"LLM sentiment filter error: {str(e)}")
-            # Fallback to technical scores only
+            logger.warning(f"Technical momentum filter error: {str(e)}")
+            # Fallback to base scores only
             return [c['symbol'] for c in candidates[:max_stocks]]
     
-    def _get_llm_sentiment_scores(self, symbols: List[str]) -> Dict[str, float]:
-        """Get sentiment scores from LLM for given symbols"""
-        try:
-            symbols_str = ", ".join(symbols)
-            
-            prompt = f"""
-            Analyze market sentiment for these stocks: {symbols_str}
-            
-            For each stock, provide a sentiment score from 0.0 to 1.0 where:
-            - 0.0-0.3 = Bearish/Negative
-            - 0.4-0.6 = Neutral
-            - 0.7-1.0 = Bullish/Positive
-            
-            Consider recent market trends, sector performance, and any notable developments.
-            
-            Respond ONLY in this JSON format:
-            {{
-                "AAPL": 0.8,
-                "MSFT": 0.7,
-                ...
-            }}
-            """
-            
-            response = self.client.chat.completions.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "You are a market sentiment analyst. Provide only JSON responses with sentiment scores."},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=200,
-                temperature=0.3
-            )
-            
-            response_text = response.choices[0].message.content
-            if not response_text:
-                return {}
-                
-            # Parse JSON response
-            sentiment_data = json.loads(response_text.strip())
-            
-            # Validate and normalize scores
-            sentiment_scores = {}
-            for symbol, score in sentiment_data.items():
-                if isinstance(score, (int, float)) and 0.0 <= score <= 1.0:
-                    sentiment_scores[symbol] = float(score)
-                else:
-                    sentiment_scores[symbol] = 0.5  # Default neutral
-                    
-            logger.info(f"LLM sentiment scores: {sentiment_scores}")
-            return sentiment_scores
-            
-        except Exception as e:
-            logger.warning(f"LLM sentiment analysis error: {str(e)}")
-            # Return neutral scores for all symbols
-            return {symbol: 0.5 for symbol in symbols}
+
     
     def _get_diversified_fallback_selection(self, max_stocks: int, sector_weights: Dict, time_factor: float) -> List[str]:
         """Intelligent diversified stock selection when market data is unavailable"""

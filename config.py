@@ -83,9 +83,7 @@ QUANTITY: [Number of shares, if applicable]
         """Validate that required configuration is present"""
         required_vars = [
             'ALPACA_API_KEY',
-            'ALPACA_SECRET_KEY',
-            'OPENAI_API_KEY',
-            'TELEGRAM_BOT_TOKEN'
+            'ALPACA_SECRET_KEY'
         ]
         
         missing_vars = []
