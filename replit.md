@@ -31,8 +31,8 @@ The application follows a modular node-based architecture similar to N8N, where 
 - **Workflow Engine** (`workflow_engine.py`): Main orchestrator managing trading cycles
 - **Node System**: Individual service nodes for different functionalities:
   - **AlpacaNode**: Handles all trading operations via Alpaca API
-  - **ChatGPTNode**: AI decision-making for buy/sell signals and market sentiment analysis
-  - **StockSelectorNode**: AI-powered intelligent stock selection system
+  - **TechnicalAnalysisNode**: Rule-based decision-making using RSI, moving averages, and momentum
+  - **StockSelectorNode**: Technical analysis-powered intelligent stock selection system
   - **TelegramNode**: Real-time notifications via Telegram bot
   - **EmailNode**: Email notifications and reports
   - **PriceDataNode**: Multi-source price data fetching with fallbacks
@@ -46,11 +46,11 @@ The application follows a modular node-based architecture similar to N8N, where 
 
 ## Data Flow
 
-1. **Stock Selection**: StockSelectorNode uses AI to intelligently choose stocks to trade every 30 minutes
+1. **Stock Selection**: StockSelectorNode uses technical analysis to intelligently choose stocks to trade every 30 minutes
 2. **Market Data Collection**: PriceDataNode fetches data from Alpaca (primary) with Alpha Vantage fallback
-3. **AI Analysis**: ChatGPTNode analyzes market data and current positions to make trading decisions
-4. **Market Sentiment**: ChatGPTNode provides overall market sentiment analysis for selected stocks
-5. **Trade Execution**: AlpacaNode executes buy/sell orders based on AI recommendations
+3. **Technical Analysis**: TechnicalAnalysisNode analyzes market data using RSI, moving averages, and momentum
+4. **Signal Generation**: Rule-based system generates buy/sell signals based on technical indicators
+5. **Trade Execution**: AlpacaNode executes buy/sell orders based on technical analysis signals
 6. **Notifications**: TelegramNode sends real-time alerts for trades, stock selections, and system status
 7. **Reporting**: ReportGeneratorNode creates periodic reports sent via EmailNode
 8. **Monitoring**: Dashboard displays real-time status, selected stocks, and trading metrics
@@ -61,8 +61,9 @@ The application follows a modular node-based architecture similar to N8N, where 
 - **Alpaca Markets API**: Primary trading execution and market data
 - **Alpha Vantage API**: Fallback market data source
 
-### AI & Decision Making
-- **OpenAI GPT API**: AI-powered trading decision making
+### Technical Analysis & Decision Making
+- **Rule-Based Technical Analysis**: RSI, moving averages, momentum analysis
+- **No External AI Dependencies**: Fully autonomous technical trading system
 
 ### Communication & Notifications
 - **Telegram Bot API**: Real-time notifications
